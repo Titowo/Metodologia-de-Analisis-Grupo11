@@ -140,7 +140,34 @@ const Frontend = {
         }
     },
 
-    
+    async handleCreateContract(e) {
+        e.preventDefault();
+        const form = new FormData(e.target);
+        const addressId = form.get('address');
+
+        if (this.state.selectedServiceIds.size === 0) {
+            return this.toast("⚠️ Debes seleccionar al menos un servicio para continuar.", "error");
+        }
+
+        if (!addressId) return this.toast("Seleccione una dirección", "error");
+        
+        this.setLoading(true, e.target);
+
+        try {
+            await DataService.createContract(
+                Array.from(this.state.selectedServiceIds),
+                addressId
+            );
+            await this.refresh();
+            this.toast("Contrato creado exitosamente");
+            this.navigate('my-contracts');
+        } catch (err) {
+            console.error(err);
+            this.toast("Error al crear contrato", "error");
+        } finally {
+            this.setLoading(false);
+        }
+    }, 
     
     async viewContractDetails(contractId) {
         const contract = this.state.data.contracts.find(c => c.id === contractId);
@@ -315,74 +342,74 @@ const Views = {
         </div>
     `,
     newContract: (data, state) => `
-        <div class="max-w-3xl mx-auto fade-in">
-            <div class="flex items-center mb-6">
-                <button onclick="Frontend.navigate('home')" class="mr-4 p-2 rounded-full hover:bg-slate-100"><i data-lucide="arrow-left"></i></button>
-                <h2 class="text-2xl font-bold">Crear Nuevo Contrato</h2>
+    <div class="max-w-3xl mx-auto fade-in">
+        <div class="flex items-center mb-6">
+            <button onclick="Frontend.navigate('home')" class="mr-4 p-2 rounded-full hover:bg-slate-100"><i data-lucide="arrow-left"></i></button>
+            <h2 class="text-2xl font-bold">Crear Nuevo Contrato</h2>
+        </div>
+
+        <form onsubmit="Frontend.handleCreateContract(event)" class="space-y-6">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="font-bold text-slate-400 uppercase text-xs mb-4">1. Selecciona Servicios</h3>
+                <div class="grid gap-3">
+                    ${data.services.map(srv => `
+                        <label class="relative cursor-pointer group">
+                            <input type="checkbox" class="sr-only service-checkbox" 
+                                onchange="Frontend.toggleService('${srv.id}', ${srv.price})" ${state.selectedServiceIds.has(srv.id) ? 'checked' : ''}>
+                            <div class="flex items-center p-4 border-2 border-slate-100 rounded-xl hover:border-blue-200 transition bg-white group-hover:bg-slate-50">
+                                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-4">
+                                    <i data-lucide="${srv.icon}" class="w-5 h-5"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex justify-between">
+                                        <span class="font-bold text-slate-900">${srv.name}</span>
+                                        <span class="font-bold text-blue-600">${Frontend.formatPrice(srv.price)}</span>
+                                    </div>
+                                    <p class="text-xs text-slate-500">${srv.desc}</p>
+                                </div>
+                                <div class="check-icon absolute top-4 right-4 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center opacity-0 transform scale-50 transition-all duration-200">
+                                    <i data-lucide="check" class="w-4 h-4"></i>
+                                </div>
+                            </div>
+                        </label>
+                    `).join('')}
+                </div>
             </div>
 
-            <form onsubmit="Frontend.handleCreateContract(event)" class="space-y-6">
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                    <h3 class="font-bold text-slate-400 uppercase text-xs mb-4">1. Selecciona Servicios</h3>
-                    <div class="grid gap-3">
-                        ${data.services.map(srv => `
-                            <label class="relative cursor-pointer group">
-                                <input type="checkbox" class="sr-only service-checkbox" 
-                                    onchange="Frontend.toggleService('${srv.id}', ${srv.price})" ${state.selectedServiceIds.has(srv.id) ? 'checked' : ''}>
-                                <div class="flex items-center p-4 border-2 border-slate-100 rounded-xl hover:border-blue-200 transition bg-white group-hover:bg-slate-50">
-                                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-4">
-                                        <i data-lucide="${srv.icon}" class="w-5 h-5"></i>
-                                    </div>
-                                    <div class="flex-1">
-                                        <div class="flex justify-between">
-                                            <span class="font-bold text-slate-900">${srv.name}</span>
-                                            <span class="font-bold text-blue-600">${Frontend.formatPrice(srv.price)}</span>
-                                        </div>
-                                        <p class="text-xs text-slate-500">${srv.desc}</p>
-                                    </div>
-                                    <div class="check-icon absolute top-4 right-4 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center opacity-0 transform scale-50 transition-all duration-200">
-                                        <i data-lucide="check" class="w-4 h-4"></i>
-                                    </div>
-                                </div>
-                            </label>
-                        `).join('')}
-                    </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-slate-400 uppercase text-xs">2. Selecciona Ubicación</h3>
+                    <button type="button" onclick="Frontend.navigate('new-address')" class="text-xs text-blue-600 font-bold hover:underline">+ Nueva</button>
                 </div>
+                <div class="grid md:grid-cols-2 gap-3">
+                    ${data.addresses.map(addr => `
+                        <label class="cursor-pointer">
+                            <input type="radio" name="address" value="${addr.id}" class="sr-only peer" required>
+                            <div class="p-4 border-2 border-slate-100 rounded-xl peer-checked:border-blue-600 peer-checked:bg-blue-50 hover:bg-slate-50 transition h-full">
+                                <div class="font-bold text-sm mb-1">${addr.alias}</div>
+                                <div class="text-xs text-slate-500">${addr.street}</div>
+                            </div>
+                        </label>
+                    `).join('')}
+                </div>
+            </div>
 
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-slate-400 uppercase text-xs">2. Selecciona Ubicación</h3>
-                        <button type="button" onclick="Frontend.navigate('new-address')" class="text-xs text-blue-600 font-bold hover:underline">+ Nueva</button>
+            <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg md:relative md:rounded-2xl md:shadow-none md:border-none md:p-0 md:bg-transparent">
+                <div class="max-w-5xl mx-auto flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-500 font-bold uppercase">Total Estimado</p>
+                        <p class="text-2xl font-bold text-slate-900" id="total-counter">${Frontend.formatPrice(state.tempTotal)}</p>
                     </div>
-                    <div class="grid md:grid-cols-2 gap-3">
-                        ${data.addresses.length > 0 ? data.addresses.map(addr => `
-                            <label class="cursor-pointer">
-                                <input type="radio" name="address" value="${addr.id}" class="sr-only peer" required>
-                                <div class="p-4 border-2 border-slate-100 rounded-xl peer-checked:border-blue-600 peer-checked:bg-blue-50 hover:bg-slate-50 transition h-full">
-                                    <div class="font-bold text-sm mb-1">${addr.alias}</div>
-                                    <div class="text-xs text-slate-500">${addr.street}</div>
-                                </div>
-                            </label>
-                        `).join('') : '<div class="col-span-2 text-sm text-slate-400 italic">No tienes direcciones registradas.</div>'}
-                    </div>
+                    <button id="btn-create-contract" type="submit" class="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-slate-800 transition">
+                        Confirmar Contrato
+                    </button>
                 </div>
-
-                <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg md:relative md:rounded-2xl md:shadow-none md:border-none md:p-0 md:bg-transparent">
-                    <div class="max-w-5xl mx-auto flex items-center justify-between">
-                        <div>
-                            <p class="text-xs text-slate-500 font-bold uppercase">Total Estimado</p>
-                            <p class="text-2xl font-bold text-slate-900" id="total-counter">${Frontend.formatPrice(state.tempTotal)}</p>
-                        </div>
-                        <button id="btn-create-contract" type="submit" ${state.selectedServiceIds.size === 0 ? 'disabled' : ''} class="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold ${state.selectedServiceIds.size === 0 ? 'opacity-50 cursor-not-allowed' : ''} transition hover:bg-slate-800">
-                            Confirmar Contrato
-                        </button>
-                    </div>
-                </div>
-            </form>
-            <div class="h-20 md:h-0"></div>
-        </div>
-    `,
-    contracts: (data) => `
+            </div>
+        </form>
+        <div class="h-20 md:h-0"></div>
+    </div>
+`,
+        contracts: (data) => `
         <div class="fade-in">
             <div class="flex items-center mb-6">
                 <button onclick="Frontend.navigate('home')" class="mr-4 p-2 rounded-full hover:bg-slate-100"><i data-lucide="arrow-left"></i></button>
