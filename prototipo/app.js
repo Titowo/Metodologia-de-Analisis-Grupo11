@@ -227,7 +227,6 @@ const Frontend = {
     formatDate(iso) { return new Date(iso).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' }); },
     
     handlePanic() {
-        if(!confirm("¿Estás seguro de enviar una señal de emergencia?")) return;
         this.toast("🚨 ¡ALERTA ENVIADA! Unidades de respuesta notificadas.", "error");
 
     },
