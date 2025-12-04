@@ -1,6 +1,7 @@
 import { DataService } from './data-service.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { auth } from './firebase-config.js'; // Necesitamos auth para el listener
+import { auth } from './firebase-config.js';
+
 
 const Frontend = {
     state: {
@@ -139,29 +140,7 @@ const Frontend = {
         }
     },
 
-    async handleCreateContract(e) {
-        e.preventDefault();
-        const form = new FormData(e.target);
-        const addressId = form.get('address');
-
-        if (!addressId) return this.toast("Seleccione una dirección", "error");
-        this.setLoading(true, e.target);
-
-        try {
-            await DataService.createContract(
-                Array.from(this.state.selectedServiceIds),
-                addressId
-            );
-            await this.refresh();
-            this.toast("Contrato guardado en tu cuenta");
-            this.navigate('my-contracts');
-        } catch (err) {
-            console.error(err);
-            this.toast("Error al crear contrato", "error");
-        } finally {
-            this.setLoading(false);
-        }
-    },
+    
     
     async viewContractDetails(contractId) {
         const contract = this.state.data.contracts.find(c => c.id === contractId);
@@ -205,9 +184,50 @@ const Frontend = {
         }
     },
 
-    closeModal() {
-        document.getElementById('modal-overlay').classList.add('hidden');
+    async handleCancelContract(contractId) {
+        if(!confirm("¿Estás seguro de que quieres dar de baja este contrato? Esta acción no se puede deshacer.")) return;
+
+        try {
+            await DataService.deleteContract(contractId);
+            await this.refresh();
+            this.toast("Contrato eliminado correctamente");
+            this.closeModal();
+            this.navigate('my-contracts'); // Refrescar vista
+        } catch (e) {
+            console.error(e);
+            this.toast("Error al eliminar contrato", "error");
+        }
     },
+
+    async renewContract(contractId, btn) {
+        // ... (Tu lógica original de renovar) ...
+         const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `Renovando...`;
+        try {
+            await DataService.renewContract(contractId);
+            await this.refresh();
+            this.toast("Renovado exitosamente");
+            this.closeModal();
+            this.navigate('my-contracts');
+        } catch (e) { this.toast("Error", "error"); } 
+        finally { if(btn) { btn.disabled = false; btn.innerHTML = originalText; } }
+    },
+
+    // ... (El resto de funciones auxiliares handleAddressSubmit, closeModal, setLoading, toast, formatPrice, formatDate, handlePanic...) ...
+    async handleAddressSubmit(e) {
+        e.preventDefault();
+        const form = Object.fromEntries(new FormData(e.target));
+        this.setLoading(true, e.target);
+        try {
+            await DataService.createAddress(form);
+            await this.refresh();
+            this.toast("Dirección guardada");
+            this.navigate('new-contract');
+        } catch (e) { this.setLoading(false); }
+    },
+    
+    closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); },
 
     setLoading(loading, form) {
         const btn = form?.querySelector('button[type="submit"]');
@@ -411,44 +431,50 @@ const Views = {
         </div>
     `,
     contractDetailsModal: (c) => `
-        <div class="bg-blue-600 p-6 text-white relative">
-            <button onclick="Frontend.closeModal()" class="absolute top-4 right-4 p-2 hover:bg-blue-500 rounded-full"><i data-lucide="x" class="w-5 h-5"></i></button>
-            <div class="text-xs opacity-75 font-mono mb-1">CONTRATO #${c.id.substring(0,8)}</div>
-            <h2 class="text-2xl font-bold">Detalles del Servicio</h2>
+    <div class="bg-blue-600 p-6 text-white relative">
+        <button onclick="Frontend.closeModal()" class="absolute top-4 right-4 p-2 hover:bg-blue-500 rounded-full"><i data-lucide="x" class="w-5 h-5"></i></button>
+        <div class="text-xs opacity-75 font-mono mb-1">CONTRATO #${c.id.substring(0,8)}</div>
+        <h2 class="text-2xl font-bold">Detalles</h2>
+    </div>
+    <div class="p-6">
+        <div class="grid grid-cols-2 gap-4 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <div>
+                <div class="text-xs text-slate-500 font-bold uppercase">Inicio</div>
+                <div class="font-medium text-slate-900">${Frontend.formatDate(c.startDate)}</div>
+            </div>
+            <div>
+                <div class="text-xs text-slate-500 font-bold uppercase">Vencimiento</div>
+                <div class="font-bold text-blue-600">${Frontend.formatDate(c.endDate)}</div>
+            </div>
         </div>
-        <div class="p-6">
-            <div class="grid grid-cols-2 gap-4 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <div>
-                    <div class="text-xs text-slate-500 font-bold uppercase">Fecha Inicio</div>
-                    <div class="font-medium text-slate-900">${Frontend.formatDate(c.startDate)}</div>
-                </div>
-                <div>
-                    <div class="text-xs text-slate-500 font-bold uppercase">Fecha Fin</div>
-                    <div class="font-bold text-blue-600">${Frontend.formatDate(c.endDate)}</div>
-                </div>
-            </div>
 
-            <h3 class="font-bold text-slate-700 text-sm mb-3">Servicios Incluidos</h3>
-            <ul class="space-y-2 mb-6">
-                ${c.services.map(s => `
-                    <li class="flex justify-between text-sm p-2 border-b border-slate-100 last:border-0">
-                        <span class="text-slate-600 flex items-center"><i data-lucide="${s.icon}" class="w-4 h-4 mr-2 text-slate-400"></i> ${s.name}</span>
-                        <span class="font-medium">${Frontend.formatPrice(s.price)}</span>
-                    </li>
-                `).join('')}
-            </ul>
+        <h3 class="font-bold text-slate-700 text-sm mb-3">Servicios</h3>
+        <ul class="space-y-2 mb-6">
+            ${c.services.map(s => `
+                <li class="flex justify-between text-sm p-2 border-b border-slate-100 last:border-0">
+                    <span class="text-slate-600 flex items-center"><i data-lucide="${s.icon}" class="w-4 h-4 mr-2 text-slate-400"></i> ${s.name}</span>
+                    <span class="font-medium">${Frontend.formatPrice(s.price)}</span>
+                </li>
+            `).join('')}
+        </ul>
 
-            <div class="flex justify-between items-center pt-4 border-t border-slate-100 mb-6">
-                <span class="font-bold text-lg">Total</span>
-                <span class="font-bold text-xl text-blue-600">${Frontend.formatPrice(c.totalPrice)}</span>
-            </div>
+        <div class="flex justify-between items-center pt-4 border-t border-slate-100 mb-6">
+            <span class="font-bold text-lg">Total</span>
+            <span class="font-bold text-xl text-blue-600">${Frontend.formatPrice(c.totalPrice)}</span>
+        </div>
 
-            <button onclick="Frontend.renewContract('${c.id}', this)" class="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition shadow-lg flex justify-center items-center">
-                <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i> Renovar Contrato (+1 Año)
+        <div class="space-y-3">
+            <button onclick="Frontend.renewContract('${c.id}', this)" class="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition flex justify-center items-center">
+                <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i> Renovar Contrato
+            </button>
+            
+            <button onclick="Frontend.handleCancelContract('${c.id}')" class="w-full py-3 text-red-600 bg-red-50 hover:bg-red-100 rounded-xl font-bold transition flex justify-center items-center">
+                <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i> Dar de Baja / Eliminar
             </button>
         </div>
-    `
-};
+    </div>
+`
+}; 
 
 window.Frontend = Frontend;
 Frontend.init();

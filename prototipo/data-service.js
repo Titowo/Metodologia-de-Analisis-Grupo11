@@ -1,17 +1,18 @@
-import { db, auth } from './firebase-config.js'; // Importamos auth
+import { db, auth } from './firebase-config.js';
 import { 
-    collection, getDocs, doc, addDoc, updateDoc, getDoc, query, orderBy, where 
+    collection, getDocs, doc, addDoc, updateDoc, getDoc, deleteDoc, query, where 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { 
     createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-const COLLECTION_SERVICES = 'services'; // Los servicios son públicos para todos
+const COLLECTION_SERVICES = 'services';
 const COLLECTION_ADDRESSES = 'addresses';
 const COLLECTION_CONTRACTS = 'contracts';
 
+
 export const DataService = {
-    
+ 
     // --- AUTENTICACIÓN ---
     async register(email, password) {
         return createUserWithEmailAndPassword(auth, email, password);
@@ -94,14 +95,25 @@ export const DataService = {
         return { id: docRef.id, ...newContract };
     },
 
-    async renewContract(contractId) {
+    async deleteContract(contractId) {
+        const contractRef = doc(db, COLLECTION_CONTRACTS, contractId);
+        await deleteDoc(contractRef);
+    },
 
+    async renewContract(contractId) {
         const contractRef = doc(db, COLLECTION_CONTRACTS, contractId);
         const contractSnap = await getDoc(contractRef);
+        // Validación básica
+        if (!contractSnap.exists()) throw new Error("Contrato no encontrado");
+        
         const currentEnd = new Date(contractSnap.data().endDate);
         const newEnd = new Date(currentEnd.setFullYear(currentEnd.getFullYear() + 1));
-        await updateDoc(contractRef, { endDate: newEnd.toISOString(), status: 'Renovado' });
-    },
+
+        await updateDoc(contractRef, {
+            endDate: newEnd.toISOString(),
+            status: 'Renovado'
+        });
+    }, 
 
     async createAddress(payload) {
         const user = auth.currentUser;
